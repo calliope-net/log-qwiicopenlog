@@ -8,7 +8,8 @@
     "files": [
         "README.md",
         "main.blocks",
-        "main.ts"
+        "main.ts",
+        "log-qwiicopenlog.ts"
     ],
     "testFiles": [
         "test.ts"
