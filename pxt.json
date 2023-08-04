@@ -3,9 +3,7 @@
     "version": "0.0.0",
     "description": "",
     "dependencies": {
-        "core": "*",
-        "radio": "*",
-        "microphone": "*"
+        "core": "*"
     },
     "files": [
         "README.md",
@@ -17,11 +15,12 @@
     ],
     "public": true,
     "targetVersions": {
-        "target": "6.0.17",
-        "targetId": "microbit"
+        "target": "4.0.35",
+        "targetId": "calliopemini"
     },
     "supportedTargets": [
+        "calliopemini",
         "microbit"
     ],
-    "preferredEditor": "blocksprj"
+    "preferredEditor": "tsprj"
 }
