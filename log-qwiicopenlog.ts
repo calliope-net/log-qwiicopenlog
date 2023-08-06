@@ -1,15 +1,18 @@
 
 //% color=#002F5F icon="\uf0c7" block="LOG Qwiic" weight=14
 namespace qwiicopenlog
-/* 230730
+/* 230806
 Calliope i2c Erweiterung für SparkFun Qwiic OpenLog
 optimiert und getestet für die gleichzeitige Nutzung mehrerer i2c Module am Calliope mini
+[Projekt-URL] https://github.com/calliope-net/log-qwiicopenlog
+[README]      https://calliope-net.github.io/log-qwiicopenlog
 
-https://learn.sparkfun.com/tutorials/qwiic-openlog-hookup-guide
-https://www.sparkfun.com/products/15164
+i2c-Modul zum Lesen und Schreiben von Dateien auf Speicherkarte
+[Hardware] https://www.sparkfun.com/products/15164
+           https://learn.sparkfun.com/tutorials/qwiic-openlog-hookup-guide
 [Firmware] https://github.com/sparkfun/Qwiic_OpenLog/archive/refs/heads/master.zip
 [cpp-Code] https://github.com/sparkfun/SparkFun_Qwiic_OpenLog_Arduino_Library/archive/main.zip
-[SparkFun Forum] https://forum.sparkfun.com/viewforum.php?f=105
+[Forum]    https://forum.sparkfun.com/viewforum.php?f=105
 
 [Register Map] https://cdn.sparkfun.com/assets/learn_tutorials/8/6/5/newthing.JPG
 
