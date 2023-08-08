@@ -1,7 +1,7 @@
 
 //% color=#002F5F icon="\uf0c7" block="LOG Qwiic" weight=14
 namespace qwiicopenlog
-/* 230806
+/* 230808
 Calliope i2c Erweiterung für SparkFun Qwiic OpenLog
 optimiert und getestet für die gleichzeitige Nutzung mehrerer i2c Module am Calliope mini
 [Projekt-URL] https://github.com/calliope-net/log-qwiicopenlog
@@ -18,8 +18,8 @@ i2c-Modul zum Lesen und Schreiben von Dateien auf Speicherkarte
 
 interne Variablen:
 'iStatus' zeigt die letzte Aktion an: init, error_SD, start, dir, read, write, help
-    kann zur Menüführung des Benutzers in den 'Knopf A' Ereignissen als boolean abgefragt werden oder zur Anzeige als Zahl
-String-Array 'aSearchString' vordefinierte Filter für Verzeichnis Suche "*.*", "*.TXT", "*.LOG", "LOG*.TXT", "*"
+    kann zur Menüführung des Benutzers in den 'Knopf A/B' Ereignissen als boolean abgefragt werden oder zur Anzeige als Zahl
+String-Array 'aSearchString' vordefinierte Filter für Verzeichnis Suche 'wildcards'
 String-Array 'aFileName' die bei Verzeichnis Suche gefundenen Datei-Namen bzw. Verzeichnis-Namen
 String-Array 'aFileContent' die gelesene Datei, je 32 Byte bzw. 32 Text-Zeichen in jedem Array-Element 
 'iSearchString', 'iFileName', 'iFileContent' ist der aktuelle Index in den Arrays
@@ -55,8 +55,8 @@ Blöcke bei ... mehr
 
 'Qwiic OpenLog Test' schreibt verschieden lange Zeilen in Datei, um die Aufteilung in Buffer-Größen zu testen
 
-Testprogramme, die mehrere i2c Module gleichzeitig nutzen (z.B. LCD 16x2 Display)
-    befinden sich in i2cexamples.ts
+Programmier-Beispiele, i2c-Module, Bilder, Bezugsquellen:
+https://calliope-net.github.io/i2c-test/
 
 
 Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli 2023
@@ -83,10 +83,10 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
         //if (iStatus == eStatus.init) readRegister(pADDR, 5) // 5 Initialize
         // nach init hängt sich der i2c-Bus auf, wenn die Speicherkarte fehlt
         // deshalb kein init - firmware siehe unten
-        if ((readRegister(pADDR, eReadRegister.status) & 0x01) == 0)
-            iStatus = eStatus.error_SD
-        else
-            iStatus = eStatus.start
+        if ((readRegister(pADDR, eReadRegister.status) & 0x01) == 0) { iStatus = eStatus.error_SD }
+        else { iStatus = eStatus.start }
+        aFileContent = null; iFileContent = 0
+        aFileName = null; iFileName = 0
     }
 
     //% group="Init / Status (letzte Aktion) abfragen" weight=90
@@ -103,9 +103,10 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
     //% pFilename.defl="*.*"
     //% pCount.min=1 pCount.max=16 pCount.defl=8
     export function listDirectory(pi2cADDR: eADDR, pFilename: string, pCount: number) {
+        iFileName = 0
         aFileName = [] // internes Array für die Dateinamen leer machen
         let lReadBuffer: Buffer
-        let utf8String: string
+        let lString: string
         let indexOf_0x00: number
 
         sendCommandString31(pi2cADDR, eWriteStringReadString.list, pFilename, false)
@@ -115,18 +116,17 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
         while (aFileName.length < pCount && // max. Anzahl zu lesende Dateinamen erreicht
             lReadBuffer.length > 0 && lReadBuffer.getUint8(0) != 0xFF) { // Buffer(0)=FF end of directory listing
 
-            utf8String = lReadBuffer.toString() // gesamten Buffer in UTF8 String konvertieren
-            indexOf_0x00 = utf8String.indexOf(String.fromCharCode(0)) // Buffer(Index)=0 end of filename
+            lString = lReadBuffer.toString() // gesamten Buffer in UTF8 String konvertieren
+            indexOf_0x00 = lString.indexOf(String.fromCharCode(0)) // Buffer(Index)=0 end of filename
             if (indexOf_0x00 > 0) {
-                aFileName.push(utf8String.substr(0, indexOf_0x00)) // vor dem 0x00 Zeichen ist der String zu Ende
+                aFileName.push(lString.substr(0, indexOf_0x00)) // vor dem 0x00 Zeichen ist der String zu Ende
             } else {
-                aFileName.push(utf8String)
+                aFileName.push(lString)
             }
 
             // nächsten Dateiname lesen
             lReadBuffer = pins.i2cReadBuffer(pi2cADDR, BUFFER_LENGTH)
         }
-        iFileName = 0
         iStatus = eStatus.dir
     }
 
@@ -139,6 +139,7 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
         // damit wird dem Array immer ein 32 Zeichen langer String hinzu gefügt
         // die gesamte Datei liegt dann in Teilen in den String-Array Elementen
         // Wiederholung solange gelesene Bytes <= pSize oder vorher bei EOF 0xFF
+        iFileContent = 0
         aFileContent = [] // Array für die Text-Datei 32 Zeichen je Array-Element
         let lReadBuffer: Buffer
         let lString: string
@@ -171,18 +172,6 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
                 } else break
             }
         }
-        /*
-                while (leftToRead > 0) {
-                    toGet = BUFFER_LENGTH
-                    if (leftToRead < toGet) { toGet = leftToRead }
-                    lReadBuffer = pins.i2cReadBuffer(pi2cADDR, toGet)
-                    utf8String = lReadBuffer.toString() // gesamten Buffer in UTF8 String konvertieren
-                    aFileContent.push(utf8String)
-                    leftToRead -= toGet
-                }
-        */
-
-        iFileContent = 0
         iStatus = eStatus.read
     }
 
@@ -205,9 +194,9 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
     export function getString(pArray: eArray) {
         if (pArray == eArray.SearchString)
             return aSearchString.get(iSearchString)
-        else if (pArray == eArray.FileName)
+        else if (pArray == eArray.FileName && aFileName != null && aFileName.length > iFileName)
             return aFileName.get(iFileName)
-        else if (pArray == eArray.FileContent)
+        else if (pArray == eArray.FileContent && aFileContent != null && aFileContent.length > iFileContent)
             return aFileContent.get(iFileContent)
         else return pArray.toString()
     }
