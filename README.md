@@ -5,6 +5,9 @@ Diese Seite bei [https://calliope-net.github.io/log-qwiicopenlog/](https://calli
 
 * [SparkFun Qwiic OpenLog](https://www.sparkfun.com/products/15164)
 
+![](https://cdn.sparkfun.com//assets/parts/1/3/5/5/4/15164-SparkFun_Qwiic_OpenLog-01.jpg)
+![](https://cdn.sparkfun.com//assets/parts/1/3/5/5/4/15164-SparkFun_Qwiic_OpenLog-03.jpg)
+
 Dieses Repository kann als **Erweiterung** in MakeCode hinzugefügt werden.
 
 * öffne [makecode.calliope.cc](https://makecode.calliope.cc)
