@@ -1,5 +1,5 @@
 {
-    "name": "log-qwiicopenlog",
+    "name": "openlog",
     "version": "1.0.4",
     "description": "",
     "dependencies": {
@@ -16,7 +16,7 @@
     ],
     "public": true,
     "targetVersions": {
-        "target": "4.0.35",
+        "target": "4.0.29",
         "targetId": "calliopemini"
     },
     "supportedTargets": [
