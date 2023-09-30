@@ -1,5 +1,5 @@
 
-Diese Seite bei [https://calliope-net.github.io/log-qwiicopenlog/](https://calliope-net.github.io/log-qwiicopenlog/) öffnen.
+Diese Seite bei [https://calliope-net.github.io/openlog/](https://calliope-net.github.io/openlog/) öffnen.
 
 ### Calliope Erweiterung für das i2c Modul:
 
@@ -14,7 +14,7 @@ Dieses Repository kann als **Erweiterung** in MakeCode hinzugefügt werden.
 * klicke auf eine Projektvorlage
 * klicke unter dem Zahnrad-Menü auf **Erweiterungen** (oder bei den Blöcken ganz unten)
 * kopiere die folgende **Projekt-URL** in die Zwischenablage (Strg-C)
-* **calliope-net/log-qwiicopenlog**
+* **calliope-net/openlog**
 * füge sie auf der Webseite oben ein (Strg-V) und klicke auf die Lupe (oder ENTER)
 
 ![](erweiterung-laden.png)
