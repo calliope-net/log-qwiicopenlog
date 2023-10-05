@@ -9,7 +9,8 @@
         "README.md",
         "main.blocks",
         "main.ts",
-        "log-qwiicopenlog.ts"
+        "log-qwiicopenlog.ts",
+        "qwiicopenlog.ts"
     ],
     "testFiles": [
         "test.ts"

@@ -1,7 +1,7 @@
 
-//% color=#BF2F2F icon="\uf0c7" block="LOG Qwiic_" weight=12
-namespace qwiicopenlog_
-/* 230808
+//% color=#BF2F2F icon="\uf0c7" block="OpenLog" weight=12
+namespace qwiicopenlog
+/* 230808 231005
 Calliope i2c Erweiterung für SparkFun Qwiic OpenLog
 optimiert und getestet für die gleichzeitige Nutzung mehrerer i2c Module am Calliope mini
 [Projekt-URL] https://github.com/calliope-net/log-qwiicopenlog
@@ -63,7 +63,7 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
  */ {
     const BUFFER_LENGTH: number = 32
 
-    export enum eADDR { LOG_Qwiic = 0x2A, LOG_Qwiic_x29 = 0x29 }
+    export enum eADDR { LOG_x2A = 0x2A, LOG_x29 = 0x29 }
     export enum eStatus { init, error_SD, start, dir, read, write, help } // Menüebene, Tasten A B A+B
     export enum eArray { SearchString = eStatus.start, FileName = eStatus.dir, FileContent = eStatus.read }
     export enum eInt { Index, Array_Length, String_Length } // Werte können von den 3 Arrays gelesen werden
@@ -78,18 +78,27 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
     // ========== group="Init / Status (letzte Aktion) abfragen"
 
     //% group="Init / Status (letzte Aktion) abfragen"
-    //% block="i2c %pi2cADDR init / set Status" weight=92
-    export function checkStatusRegister(pADDR: eADDR) {
+    //% block="i2c %pADDR beim Start" weight=2
+    //% pADDR.shadow="qwiicopenlog_eADDR"
+    export function checkStatusRegister(pADDR: number) {
         //if (iStatus == eStatus.init) readRegister(pADDR, 5) // 5 Initialize
         // nach init hängt sich der i2c-Bus auf, wenn die Speicherkarte fehlt
         // deshalb kein init - firmware siehe unten
-        if ((readRegister(pADDR, eReadRegister.status) & 0x01) == 0) { iStatus = eStatus.error_SD }
-        else { iStatus = eStatus.start }
+
+        write1Byte(pADDR, eReadRegister.status, true)
+        if (i2cNoError(pADDR)) {
+            if ((pins.i2cReadBuffer(pADDR, 1).getUint8(0) & 0x01) == 0)
+                iStatus = eStatus.error_SD
+            else
+                iStatus = eStatus.start
+        } else
+            iStatus = eStatus.init
+
         aFileContent = null; iFileContent = 0
         aFileName = null; iFileName = 0
     }
 
-    //% group="Init / Status (letzte Aktion) abfragen" weight=90
+    //% group="Init / Status (letzte Aktion) abfragen" weight=1
     //% block="Status = %pStatus"
     export function isStatus(pStatus: eStatus) { return (pStatus == iStatus) }
 
@@ -99,20 +108,21 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
     export enum eWriteStringReadString { readFile = 9, list = 14, } // Qwiic OpenLog Register Nummern
 
     //% group="i2c Verzeichnis lesen in internes Array 'FileName'"
-    //% block="i2c %i2cADDR DIR %pFilename max Dateinamen %pCount" weight=82
+    //% block="i2c %pADDR DIR %pFilename max Dateinamen %pCount" weight=4
+    //% pADDR.shadow="qwiicopenlog_eADDR"
     //% pFilename.defl="*.*"
     //% pCount.min=1 pCount.max=16 pCount.defl=8
-    export function listDirectory(pi2cADDR: eADDR, pFilename: string, pCount: number) {
+    export function listDirectory(pADDR: number, pFilename: string, pCount: number) {
         iFileName = 0
         aFileName = [] // internes Array für die Dateinamen leer machen
         let lReadBuffer: Buffer
         let lString: string
         let indexOf_0x00: number
 
-        sendCommandString31(pi2cADDR, eWriteStringReadString.list, pFilename, false)
+        sendCommandString31(pADDR, eWriteStringReadString.list, pFilename, false)
 
         // ersten Dateiname lesen
-        lReadBuffer = pins.i2cReadBuffer(pi2cADDR, BUFFER_LENGTH)
+        lReadBuffer = pins.i2cReadBuffer(pADDR, BUFFER_LENGTH)
         while (aFileName.length < pCount && // max. Anzahl zu lesende Dateinamen erreicht
             lReadBuffer.length > 0 && lReadBuffer.getUint8(0) != 0xFF) { // Buffer(0)=FF end of directory listing
 
@@ -125,16 +135,17 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
             }
 
             // nächsten Dateiname lesen
-            lReadBuffer = pins.i2cReadBuffer(pi2cADDR, BUFFER_LENGTH)
+            lReadBuffer = pins.i2cReadBuffer(pADDR, BUFFER_LENGTH)
         }
         iStatus = eStatus.dir
     }
 
     //% group="i2c Datei lesen je 32 Zeichen in Array 'FileContent'"
-    //% block="i2c %i2cADDR Datei lesen %pFilename max Bytes %pSize" weight=80
+    //% block="i2c %pADDR Datei lesen %pFilename max Bytes %pSize" weight=2
+    //% pADDR.shadow="qwiicopenlog_eADDR"
     //% pSize.min=1 pSize.max=1024 pSize.defl=128
     //% pFilename.defl="config.txt"
-    export function readFile(pi2cADDR: eADDR, pFilename: string, pSize: number) {
+    export function readFile(pADDR: number, pFilename: string, pSize: number) {
         // ein i2cReadBuffer holt max. 32 Bytes
         // damit wird dem Array immer ein 32 Zeichen langer String hinzu gefügt
         // die gesamte Datei liegt dann in Teilen in den String-Array Elementen
@@ -148,10 +159,10 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
         if (pSize > 0) {
             //startPosition(pi2cADDR, 4)
 
-            sendCommandString31(pi2cADDR, eWriteStringReadString.readFile, pFilename, false)
+            sendCommandString31(pADDR, eWriteStringReadString.readFile, pFilename, false)
 
             // erste 32 Byte lesen oder weniger wenn pSize < 32
-            lReadBuffer = pins.i2cReadBuffer(pi2cADDR, Math.min(BUFFER_LENGTH, pSize))
+            lReadBuffer = pins.i2cReadBuffer(pADDR, Math.min(BUFFER_LENGTH, pSize))
 
             // ein leerer Buffer beginnt mit 00, dann folgt 31 mal FF (ist bei DIR anders)
             // wenn das 1. Byte im Buffer 0x00 ist, ist die Datei zu Ende
@@ -168,7 +179,7 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
 
                 if (pSize - aFileContent.length * BUFFER_LENGTH > 0) {
                     // nächste 32 Byte lesen
-                    lReadBuffer = pins.i2cReadBuffer(pi2cADDR, Math.min(BUFFER_LENGTH, pSize - aFileContent.length * BUFFER_LENGTH))
+                    lReadBuffer = pins.i2cReadBuffer(pADDR, Math.min(BUFFER_LENGTH, pSize - aFileContent.length * BUFFER_LENGTH))
                 } else break
             }
         }
@@ -229,7 +240,7 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
     // ========== group="i2c Datei schreiben"
 
     //% group="i2c Datei schreiben"
-    //% block="ist Dateiname 8.3 gültig %pFilename" weight=62
+    //% block="ist Dateiname 8.3 gültig %pFilename" weight=3
     export function checkFileName8punkt3(pFilename: string): boolean {
         let a: string[] = pFilename.split(".", 2)
         return (a.length == 2 && a.get(0).length > 0 && a.get(0).length <= 8 && a.get(1).length > 0 && a.get(1).length <= 3)
@@ -238,18 +249,19 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
     export enum eCRLF { CRLF, _ }
 
     //% group="i2c Datei schreiben"
-    //% block="i2c %i2cADDR Datei schreiben %pFilename %pText %pCRLF" weight=61
+    //% block="i2c %pADDR Datei schreiben %pFilename %pText %pCRLF" weight=2
+    //% pADDR.shadow="qwiicopenlog_eADDR"
     //% pFilename.defl="TEST.LOG"
     //% inlineInputMode=inline
-    export function writeFile(pi2cADDR: eADDR, pFilename: string, pText: string, pCRLF: eCRLF) {
+    export function writeFile(pADDR: number, pFilename: string, pText: string, pCRLF: eCRLF) {
         if (checkFileName8punkt3(pFilename)) {
-            sendCommandString31(pi2cADDR, eWriteString.openFile, pFilename, false) // Append (open or create and open)
+            sendCommandString31(pADDR, eWriteString.openFile, pFilename, false) // Append (open or create and open)
             if (pCRLF == eCRLF.CRLF) { pText = pText + String.fromCharCode(13) + String.fromCharCode(10) }
             if (pText.length <= 31) {
-                sendCommandString31(pi2cADDR, eWriteString.writeFile, pText, false)
+                sendCommandString31(pADDR, eWriteString.writeFile, pText, false)
             } else {
                 for (let Index = 0; Index < pText.length; Index += 31) {
-                    sendCommandString31(pi2cADDR, eWriteString.writeFile, pText.substr(Index, Math.min(31, pText.length - Index)), false)
+                    sendCommandString31(pADDR, eWriteString.writeFile, pText.substr(Index, Math.min(31, pText.length - Index)), false)
                 }
             }
             iStatus = eStatus.write
@@ -257,8 +269,9 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
     }
 
     //% group="i2c Datei schreiben"
-    //% block="i2c %i2cADDR syncFile (Speicherkarte entfernen)" weight=60
-    export function syncFile(pADDR: eADDR) {
+    //% block="i2c %pADDR syncFile (Speicherkarte entfernen)" weight=1
+    //% pADDR.shadow="qwiicopenlog_eADDR"
+    export function syncFile(pADDR: number) {
         //if you definitely want your buffer synced right now then you can manually call it
         if (iFirmwareMajor == 0) { iFirmwareMajor = readRegister(pADDR, eReadRegister.firmwareMajor) }
         if (iFirmwareMajor >= 3) {
@@ -276,11 +289,12 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
     export enum eWriteStringReadInt32BE { fileSize = 13, remove = 15, removeRecursively = 16 } // Qwiic OpenLog Register Nummern
 
     //% group="i2c Dateigröße lesen, Datei/Verzeichnis löschen (Int32)" advanced=true
-    //% block="i2c %pi2cADDR %pRegister Name %pFilename" weight=44
+    //% block="i2c %pADDR %pRegister Name %pFilename"
+    //% pADDR.shadow="qwiicopenlog_eADDR"
     //% pFilename.defl="LOG*.TXT"
-    export function readInt32BE(pi2cADDR: eADDR, pRegister: eWriteStringReadInt32BE, pFilename: string) {
-        sendCommandString31(pi2cADDR, pRegister, pFilename, true)
-        return pins.i2cReadBuffer(pi2cADDR, 4).getNumber(NumberFormat.Int32BE, 0)
+    export function readInt32BE(pADDR: number, pRegister: eWriteStringReadInt32BE, pFilename: string) {
+        sendCommandString31(pADDR, pRegister, pFilename, true)
+        return pins.i2cReadBuffer(pADDR, 4).getNumber(NumberFormat.Int32BE, 0)
     }
 
     // ========== group="i2c Datei/Verzeichnis anlegen/öffnen (write only)" advanced=true
@@ -289,11 +303,12 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
         createFile = 6, makeDirectory = 7, changeDirectory = 8, startPosition = 10, openFile = 11, writeFile = 12, syncFile = 17
     }
     //% group="i2c Datei/Verzeichnis anlegen/öffnen (write only)" advanced=true
-    //% block="i2c %pi2cADDR %pRegister Name %pString repeat %repeat" weight=42
+    //% block="i2c %pADDR %pRegister Name %pFilename repeat %repeat"
+    //% pADDR.shadow="qwiicopenlog_eADDR"
     //% pRegister.defl=qwiicopenlog.eWriteString.changeDirectory pFilename.defl=".."
     //% inlineInputMode=inline
-    export function writeString(pi2cADDR: eADDR, pRegister: eWriteString, pFilename: string, repeat: boolean) {
-        sendCommandString31(pi2cADDR, pRegister, pFilename, repeat)
+    export function writeString(pADDR: number, pRegister: eWriteString, pFilename: string, repeat: boolean) {
+        sendCommandString31(pADDR, pRegister, pFilename, repeat)
     }
 
 
@@ -304,8 +319,9 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
         i2cAddress = 0x1E
     }
     //% group="i2c Qwiic OpenLog Register (id, status, firmware) lesen (Byte)" advanced=true
-    //% block="i2c %pi2cADDR Register %pRegister" weight=40
-    export function readRegister(pADDR: eADDR, pRegister: eReadRegister) {
+    //% block="i2c %pADDR Register %pRegister"
+    //% pADDR.shadow="qwiicopenlog_eADDR"
+    export function readRegister(pADDR: number, pRegister: eReadRegister) {
         //let b = pins.createBuffer(1)
         //b.setUint8(0, pRegister)
         //pins.i2cWriteBuffer(pADDR, b, true)
@@ -317,12 +333,13 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
     // ========== group="i2c Qwiic OpenLog Test" advanced=true
 
     //% group="i2c Qwiic OpenLog Test" advanced=true
-    //% block="i2c %pi2cADDR schreibe Zeilen 0 bis 94 Zeichen Länge in Datei %pFilename" weight=38
+    //% block="i2c %pADDR schreibe Zeilen 0 bis 94 Zeichen Länge in Datei %pFilename"
+    //% pADDR.shadow="qwiicopenlog_eADDR"
     //% pFilename.defl="ASCII94.LOG"
-    export function testWrite(pi2cADDR: eADDR, pFilename: string) {
+    export function testWrite(pADDR: number, pFilename: string) {
         let s = ""
         for (let i = 0; i <= 94; i++) {
-            writeFile(pi2cADDR, pFilename, s, eCRLF.CRLF)
+            writeFile(pADDR, pFilename, s, eCRLF.CRLF)
             s = s + String.fromCharCode(i + 33)
         }
     }
@@ -382,18 +399,15 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
 
     // ========== PRIVATE function
 
-    function startPosition(pi2cADDR: eADDR, pPosition: number) {
+    function startPosition(pADDR: number, pPosition: number) {
         let b = pins.createBuffer(2)
         b.setUint8(0, eWriteString.startPosition)
         b.setUint8(1, pPosition) // es wird nur das 1. Byte ausgewertet - siehe unten
-        pins.i2cWriteBuffer(pi2cADDR, b)
+        qwiicopenlog_i2cWriteBufferError = pins.i2cWriteBuffer(pADDR, b)
         control.waitMicros(50)
     }
 
-    //% group="i2c Register schreiben" advanced=true
-    //% block="sendCommandString %pi2cADDR %pByte (Text max 31 Z.) %pText repeat %repeat"
-    //% inlineInputMode=inline
-    function sendCommandString31(pADDR: eADDR, pCommand: number, pText: string, repeat: boolean) {
+    function sendCommandString31(pADDR: number, pCommand: number, pText: string, repeat: boolean) {
         if (pText.length > 31) {
             pText = pText.substr(0, 31)
         }
@@ -402,17 +416,38 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
         for (let Index = 0; Index <= pText.length - 1; Index++) {
             b.setUint8(Index + 1, pText.charCodeAt(Index))
         }
-        pins.i2cWriteBuffer(pADDR, b, repeat)
+        qwiicopenlog_i2cWriteBufferError = pins.i2cWriteBuffer(pADDR, b, repeat)
         control.waitMicros(50)
     }
 
-    function write1Byte(pADDR: eADDR, pRegister: number, repeat: boolean) {
+    function write1Byte(pADDR: number, pRegister: number, repeat: boolean) {
         let b = pins.createBuffer(1)
         b.setUint8(0, pRegister)
-        pins.i2cWriteBuffer(pADDR, b, repeat)
+        qwiicopenlog_i2cWriteBufferError = pins.i2cWriteBuffer(pADDR, b, repeat)
     }
 
 
+    // ========== group="i2c Adressen"
+
+    //% blockId=qwiicopenlog_eADDR
+    //% group="i2c Adressen" advanced=true
+    //% block="%pADDR" weight=4
+    export function qwiicopenlog_eADDR(pADDR: eADDR): number { return pADDR }
+
+    //% group="i2c Adressen" advanced=true
+    //% block="i2c Fehlercode" weight=2
+    export function i2cError() { return qwiicopenlog_i2cWriteBufferError }
+
+    let qwiicopenlog_i2cWriteBufferError: number = 0 // Fehlercode vom letzten WriteBuffer (0 ist kein Fehler)
+
+    function i2cNoError(pADDR: number): boolean {
+        if (i2cError() == 0) {
+            return true
+        } else {
+            basic.showNumber(pADDR) // wenn Modul nicht angesteckt: i2c Adresse anzeigen und Abbruch
+            return false
+        }
+    }
     /*
     
     [Firmware] https://github.com/sparkfun/Qwiic_OpenLog/archive/refs/heads/master.zip
@@ -466,4 +501,5 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
       valueMap.status |= (1 << STATUS_LAST_COMMAND_SUCCESS); //Command success
     }
     */
-} // log-qwiicopenlog.ts
+} // qwiicopenlog.ts
+
