@@ -62,6 +62,8 @@ https://calliope-net.github.io/i2c-test/
 Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli 2023
  */ {
     const BUFFER_LENGTH: number = 32
+    let n_i2cCheck: boolean = false // i2c-Check
+    let n_i2cError: number = 0 // Fehlercode vom letzten WriteBuffer (0 ist kein Fehler)
 
     export enum eADDR { LOG_x2A = 0x2A, LOG_x29 = 0x29 }
     export enum eStatus { init, error_SD, start, dir, read, write, help } // Menüebene, Tasten A B A+B
@@ -78,16 +80,20 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
     // ========== group="Init / Status (letzte Aktion) abfragen"
 
     //% group="Init / Status (letzte Aktion) abfragen"
-    //% block="i2c %pADDR beim Start" weight=2
+    //% block="i2c %pADDR beim Start || i2c-Check %ck" weight=2
     //% pADDR.shadow="qwiicopenlog_eADDR"
-    export function checkStatusRegister(pADDR: number) {
+    //% ck.shadow="toggleOnOff" ck.defl=1
+    export function checkStatusRegister(pADDR: number, ck?: boolean) {
+        n_i2cCheck = (ck ? true : false) // optionaler boolean Parameter kann undefined sein
+        n_i2cError = 0 // Reset Fehlercode
+
         //if (iStatus == eStatus.init) readRegister(pADDR, 5) // 5 Initialize
         // nach init hängt sich der i2c-Bus auf, wenn die Speicherkarte fehlt
         // deshalb kein init - firmware siehe unten
 
         write1Byte(pADDR, eReadRegister.status, true)
-        if (i2cNoError(pADDR)) {
-            if ((pins.i2cReadBuffer(pADDR, 1).getUint8(0) & 0x01) == 0)
+        if (n_i2cError == 0) {
+            if ((i2cReadBuffer(pADDR, 1).getUint8(0) & 0x01) == 0)
                 iStatus = eStatus.error_SD
             else
                 iStatus = eStatus.start
@@ -122,7 +128,7 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
         sendCommandString31(pADDR, eWriteStringReadString.list, pFilename, false)
 
         // ersten Dateiname lesen
-        lReadBuffer = pins.i2cReadBuffer(pADDR, BUFFER_LENGTH)
+        lReadBuffer = i2cReadBuffer(pADDR, BUFFER_LENGTH)
         while (aFileName.length < pCount && // max. Anzahl zu lesende Dateinamen erreicht
             lReadBuffer.length > 0 && lReadBuffer.getUint8(0) != 0xFF) { // Buffer(0)=FF end of directory listing
 
@@ -135,7 +141,7 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
             }
 
             // nächsten Dateiname lesen
-            lReadBuffer = pins.i2cReadBuffer(pADDR, BUFFER_LENGTH)
+            lReadBuffer = i2cReadBuffer(pADDR, BUFFER_LENGTH)
         }
         iStatus = eStatus.dir
     }
@@ -162,7 +168,7 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
             sendCommandString31(pADDR, eWriteStringReadString.readFile, pFilename, false)
 
             // erste 32 Byte lesen oder weniger wenn pSize < 32
-            lReadBuffer = pins.i2cReadBuffer(pADDR, Math.min(BUFFER_LENGTH, pSize))
+            lReadBuffer = i2cReadBuffer(pADDR, Math.min(BUFFER_LENGTH, pSize))
 
             // ein leerer Buffer beginnt mit 00, dann folgt 31 mal FF (ist bei DIR anders)
             // wenn das 1. Byte im Buffer 0x00 ist, ist die Datei zu Ende
@@ -179,7 +185,7 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
 
                 if (pSize - aFileContent.length * BUFFER_LENGTH > 0) {
                     // nächste 32 Byte lesen
-                    lReadBuffer = pins.i2cReadBuffer(pADDR, Math.min(BUFFER_LENGTH, pSize - aFileContent.length * BUFFER_LENGTH))
+                    lReadBuffer = i2cReadBuffer(pADDR, Math.min(BUFFER_LENGTH, pSize - aFileContent.length * BUFFER_LENGTH))
                 } else break
             }
         }
@@ -276,9 +282,6 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
         if (iFirmwareMajor == 0) { iFirmwareMajor = readRegister(pADDR, eReadRegister.firmwareMajor) }
         if (iFirmwareMajor >= 3) {
             write1Byte(pADDR, eWriteString.syncFile, false)
-            //let b = pins.createBuffer(1)
-            //b.setUint8(0, eWriteString.syncFile)
-            //pins.i2cWriteBuffer(pADDR, b)
         }
     }
 
@@ -294,7 +297,7 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
     //% pFilename.defl="LOG*.TXT"
     export function readInt32BE(pADDR: number, pRegister: eWriteStringReadInt32BE, pFilename: string) {
         sendCommandString31(pADDR, pRegister, pFilename, true)
-        return pins.i2cReadBuffer(pADDR, 4).getNumber(NumberFormat.Int32BE, 0)
+        return i2cReadBuffer(pADDR, 4).getNumber(NumberFormat.Int32BE, 0)
     }
 
     // ========== group="i2c Datei/Verzeichnis anlegen/öffnen (write only)" advanced=true
@@ -322,11 +325,8 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
     //% block="i2c %pADDR Register %pRegister"
     //% pADDR.shadow="qwiicopenlog_eADDR"
     export function readRegister(pADDR: number, pRegister: eReadRegister) {
-        //let b = pins.createBuffer(1)
-        //b.setUint8(0, pRegister)
-        //pins.i2cWriteBuffer(pADDR, b, true)
         write1Byte(pADDR, pRegister, true)
-        return pins.i2cReadBuffer(pADDR, 1).getNumber(NumberFormat.Int8LE, 0)
+        return i2cReadBuffer(pADDR, 1).getNumber(NumberFormat.Int8LE, 0)
     }
 
 
@@ -400,10 +400,10 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
     // ========== PRIVATE function
 
     function startPosition(pADDR: number, pPosition: number) {
-        let b = pins.createBuffer(2)
+        let b = Buffer.create(2)
         b.setUint8(0, eWriteString.startPosition)
         b.setUint8(1, pPosition) // es wird nur das 1. Byte ausgewertet - siehe unten
-        qwiicopenlog_i2cWriteBufferError = pins.i2cWriteBuffer(pADDR, b)
+        i2cWriteBuffer(pADDR, b)
         control.waitMicros(50)
     }
 
@@ -411,19 +411,19 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
         if (pText.length > 31) {
             pText = pText.substr(0, 31)
         }
-        let b = pins.createBuffer(pText.length + 1)
+        let b = Buffer.create(pText.length + 1)
         b.setUint8(0, pCommand)
         for (let Index = 0; Index <= pText.length - 1; Index++) {
             b.setUint8(Index + 1, pText.charCodeAt(Index))
         }
-        qwiicopenlog_i2cWriteBufferError = pins.i2cWriteBuffer(pADDR, b, repeat)
+        i2cWriteBuffer(pADDR, b, repeat)
         control.waitMicros(50)
     }
 
     function write1Byte(pADDR: number, pRegister: number, repeat: boolean) {
-        let b = pins.createBuffer(1)
+        let b = Buffer.create(1)
         b.setUint8(0, pRegister)
-        qwiicopenlog_i2cWriteBufferError = pins.i2cWriteBuffer(pADDR, b, repeat)
+        i2cWriteBuffer(pADDR, b, repeat)
     }
 
 
@@ -436,18 +436,25 @@ Code anhand der original Datenblätter neu programmiert von Lutz Elßner im Juli
 
     //% group="i2c Adressen" advanced=true
     //% block="i2c Fehlercode" weight=2
-    export function i2cError() { return qwiicopenlog_i2cWriteBufferError }
+    export function i2cError() { return n_i2cError }
 
-    let qwiicopenlog_i2cWriteBufferError: number = 0 // Fehlercode vom letzten WriteBuffer (0 ist kein Fehler)
-
-    function i2cNoError(pADDR: number): boolean {
-        if (i2cError() == 0) {
-            return true
-        } else {
-            basic.showNumber(pADDR) // wenn Modul nicht angesteckt: i2c Adresse anzeigen und Abbruch
-            return false
-        }
+    function i2cWriteBuffer(pADDR: number, buf: Buffer, repeat: boolean = false) {
+        if (n_i2cError == 0) { // vorher kein Fehler
+            n_i2cError = pins.i2cWriteBuffer(pADDR, buf, repeat)
+            if (n_i2cCheck && n_i2cError != 0)  // vorher kein Fehler, wenn (n_i2cCheck=true): beim 1. Fehler anzeigen
+                basic.showString(Buffer.fromArray([pADDR]).toHex()) // zeige fehlerhafte i2c-Adresse als HEX
+        } else if (!n_i2cCheck)  // vorher Fehler, aber ignorieren (n_i2cCheck=false): i2c weiter versuchen
+            n_i2cError = pins.i2cWriteBuffer(pADDR, buf, repeat)
+        //else { } // n_i2cCheck=true und n_i2cError != 0: weitere i2c Aufrufe blockieren
     }
+
+    function i2cReadBuffer(pADDR: number, size: number, repeat: boolean = false): Buffer {
+        if (!n_i2cCheck || n_i2cError == 0)
+            return pins.i2cReadBuffer(pADDR, size, repeat)
+        else
+            return Buffer.create(size)
+    }
+
     /*
     
     [Firmware] https://github.com/sparkfun/Qwiic_OpenLog/archive/refs/heads/master.zip
