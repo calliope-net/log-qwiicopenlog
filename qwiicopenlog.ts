@@ -1,5 +1,5 @@
 
-//% color=#BF2F2F icon="\uf0c7" block="OpenLog" weight=12
+//% color=#BF2F2F icon="\uf0c7" block="Speicherkarte" weight=12
 namespace qwiicopenlog
 /* 230808 231005
 Calliope i2c Erweiterung für SparkFun Qwiic OpenLog
